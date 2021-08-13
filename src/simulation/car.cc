@@ -144,7 +144,6 @@ void Car::aerial_control(const Input& in, float dt) {
 }
 
 float Car::drive_force_forward(const Input& in) {
-#if 0
 	constexpr float driving_speed = 1450.0f;
 	constexpr float braking_force = -3500.0f;
 	constexpr float coasting_force = -525.0f;
@@ -157,9 +156,9 @@ float Car::drive_force_forward(const Input& in) {
 	constexpr float braking_threshold = -0.001f;
 	constexpr float supersonic_turn_drag = -98.25;  // ?
 
-	const float v_f = dot(v, forward());
-	const float v_l = dot(v, left());
-	const float w_u = dot(w, up());
+	const float v_f = dot(velocity, forward());
+	const float v_l = dot(velocity, left());
+	const float w_u = dot(angular_velocity, up());
 
 	const float dir = sgn(v_f);
 	const float speed = fabs(v_f);
@@ -221,38 +220,51 @@ float Car::drive_force_forward(const Input& in) {
 			}
 		}
 	}
-#else
-  return 0.0f;
-#endif
 }
 
 float Car::drive_force_left(const Input& in) {
-#if 0
-	const float v_f = dot(v, forward());
-	const float v_l = dot(v, left());
-	const float w_u = dot(w, up());
+	const float v_f = dot(velocity, forward());
+	const float v_l = dot(velocity, left());
+	const float w_u = dot(angular_velocity, up());
 
 	return (1380.4531378f * in.steer + 7.8281188f * in.throttle -
 		15.0064029f * v_l + 668.1208332f * w_u) *
 		(1.0f - exp(-0.001161f * fabs(v_f)));
-#else
-  return 0.0f;
-#endif
+}
+
+float max_curvature(float velocity) {
+  const std::vector<std::pair<float, float>> points {
+    {0, 0.0069},
+    {500, 0.00398},
+    {1000, 0.00235},
+    {1500, 0.001375},
+    {1750, 0.0011},
+    {2300, 0.00088},
+    };
+
+  for (int i = 0; i < points.size()-1; i++) {
+    float v1 = points[i].first;
+    float v2 = points[i+1].first;
+    float k1 = points[i].second;
+    float k2 = points[i+1].second;
+
+    if (velocity >= v1 && velocity < v2) {
+      float frac = (velocity - v1) / (v2-v1);
+      float k = k1 + frac * (k2 - k1);
+      return k;
+    }
+  }
+  return 0.0;
 }
 
 float Car::drive_torque_up(const Input& in) {
-#if 0
-	float v_f = dot(v, forward());
-	float w_u = dot(w, up());
+	float v_f = dot(velocity, forward());
+	float w_u = dot(angular_velocity, up());
 
 	return 15.0f * (in.steer * max_curvature(fabs(v_f)) * v_f - w_u);
-#else
-  return 0.0f;
-#endif
 }
 
 void Car::driving(const Input& in, float dt) {
-#if 0
 	// in-plane forces
 	vec3 force =
 		drive_force_forward(in) * forward() + drive_force_left(in) * left();
@@ -260,12 +272,11 @@ void Car::driving(const Input& in, float dt) {
 	// out-of-plane torque
 	vec3 torque = drive_torque_up(in) * up();
 
-	v += force * dt;
-	x += v * dt;
+	velocity += force * dt;
+	position += velocity * dt;
 
-	w += torque * dt;
-	o = dot(axis_to_rotation(w * dt), o);
-#endif
+	angular_velocity += torque * dt;
+	orientation = dot(axis_to_rotation(angular_velocity * dt), orientation);
 }
 
 void Car::driving_handbrake(const Input& in, float dt) {
